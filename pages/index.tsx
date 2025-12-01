@@ -42,6 +42,20 @@ export default function Home() {
     addStation();
   }, []);
 
+  // Calculate warnings for Step 1
+  const getStep1Warnings = (): string[] => {
+    const warnings: string[] = [];
+    state.stations.forEach((station, idx) => {
+      if (station.hasCDS && !station.hasPOS) {
+        warnings.push(`⚠️ Station ${idx + 1}: CDS iPad requires a POS iPad to pair with. Ensure customer has their own POS iPad.`);
+      }
+      if (!station.hasPOS && !station.hasCDS) {
+        warnings.push(`⚠️ Station ${idx + 1}: No iPads selected. This station will have no equipment.`);
+      }
+    });
+    return warnings;
+  };
+
   const saveState = (newState: ProvisionerState) => {
     setState(newState);
     localStorage.setItem('waffleProvisionerState', JSON.stringify(newState));
@@ -114,6 +128,11 @@ export default function Home() {
     const newPlacement = [...state.printersPlacement];
     newPlacement[index] = { ...newPlacement[index], ...updates } as PrinterPlacement;
     saveState({ ...state, printersPlacement: newPlacement });
+  };
+
+  const selectPrinterOption = (index: number, key: keyof PrinterPlacement, value: any) => {
+    const updates: Partial<PrinterPlacement> = { [key]: value };
+    updatePrinterPlacement(index, updates);
   };
 
   const nextStep = () => {
@@ -544,6 +563,12 @@ export default function Home() {
               + Add Station
             </button>
 
+            {getStep1Warnings().map((warning, idx) => (
+              <div key={idx} className="warning">
+                {warning}
+              </div>
+            ))}
+
             <h3>Peripherals</h3>
             <p className="help-text">
               Total peripherals needed (AMs will allocate to stations on-site)
@@ -633,7 +658,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* Step 3: Printer Placement - Simplified for brevity */}
+        {/* Step 3: Printer Placement */}
         {currentStep === 3 && (
           <div className="card">
             <h2>Printer Placement & Station Assignment</h2>
@@ -641,10 +666,438 @@ export default function Home() {
               For each printer, specify location, station pairing, and cable
               requirements
             </p>
-            <p className="info">
-              This step requires detailed implementation. Refer to original HTML for
-              full logic.
-            </p>
+
+            {(() => {
+              const totalPrinters = state.printers.receipt + state.printers.kitchen + state.printers.label;
+              if (totalPrinters === 0) {
+                return <p className="help-text">No printers configured. Go back to Step 2 to add printers.</p>;
+              }
+
+              let printerIndex = 0;
+              const printerForms = [];
+
+              // Receipt printers
+              for (let i = 0; i < state.printers.receipt; i++) {
+                const idx = printerIndex;
+                const placement = state.printersPlacement[idx] || { type: 'receipt' };
+                printerForms.push(
+                  <div key={`receipt-${i}`} className="printer-card">
+                    <div className="printer-header">Receipt Printer #{i + 1}</div>
+
+                    <div className="form-group">
+                      <label>Physical Location</label>
+                      <select
+                        value={placement.location || ''}
+                        onChange={(e) => {
+                          updatePrinterPlacement(idx, { type: 'receipt', location: e.target.value as LocationType });
+                        }}
+                      >
+                        <option value="">Select location...</option>
+                        <option value="front_of_house_counter">Front of House Counter</option>
+                        <option value="back_of_house_kitchen">Back of House Kitchen</option>
+                        <option value="back_of_house_expeditor">Back of House Expeditor</option>
+                        <option value="bar">Bar</option>
+                        <option value="back_office">Back Office</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </div>
+
+                    {placement.location === 'other' && (
+                      <div className="form-group">
+                        <label>Specify Location</label>
+                        <input
+                          type="text"
+                          placeholder="e.g., Patio Bar"
+                          value={placement.locationCustom || ''}
+                          onChange={(e) => updatePrinterPlacement(idx, { locationCustom: e.target.value })}
+                        />
+                      </div>
+                    )}
+
+                    <div className="form-group">
+                      <label>Paired to Which Station?</label>
+                      <select
+                        value={placement.stationId || ''}
+                        onChange={(e) => updatePrinterPlacement(idx, { stationId: e.target.value })}
+                      >
+                        <option value="">Select station...</option>
+                        {state.stations.map((s, sIdx) => (
+                          <option key={s.id} value={s.id.toString()}>Station {sIdx + 1}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="form-group">
+                      <label>Can we run a visible cable to this printer?</label>
+                      <div className="button-group">
+                        <div
+                          className={`button-group-item ${placement.canCable === true ? 'selected' : ''}`}
+                          onClick={() => selectPrinterOption(idx, 'canCable', true)}
+                        >
+                          Yes
+                        </div>
+                        <div
+                          className={`button-group-item ${placement.canCable === false ? 'selected' : ''}`}
+                          onClick={() => selectPrinterOption(idx, 'canCable', false)}
+                        >
+                          No
+                        </div>
+                      </div>
+                    </div>
+
+                    {placement.canCable === true && (
+                      <div className="form-group">
+                        <label>Is there an ethernet outlet at this location?</label>
+                        <p className="help-text">An ethernet outlet is a wall-mounted socket (like a power outlet) with in-wall cabling</p>
+                        <div className="button-group">
+                          <div
+                            className={`button-group-item ${placement.hasOutlet === true ? 'selected' : ''}`}
+                            onClick={() => selectPrinterOption(idx, 'hasOutlet', true)}
+                          >
+                            Yes
+                          </div>
+                          <div
+                            className={`button-group-item ${placement.hasOutlet === false ? 'selected' : ''}`}
+                            onClick={() => selectPrinterOption(idx, 'hasOutlet', false)}
+                          >
+                            No
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {placement.canCable === true && placement.hasOutlet !== undefined && (
+                      <div className="form-group">
+                        <label>Cable length needed</label>
+                        <div className="button-group">
+                          <div
+                            className={`button-group-item ${placement.cableLength === 5 ? 'selected' : ''}`}
+                            onClick={() => selectPrinterOption(idx, 'cableLength', 5)}
+                          >
+                            &lt; 5M
+                          </div>
+                          <div
+                            className={`button-group-item ${placement.cableLength === 10 ? 'selected' : ''}`}
+                            onClick={() => selectPrinterOption(idx, 'cableLength', 10)}
+                          >
+                            &lt; 10M
+                          </div>
+                          <div
+                            className={`button-group-item ${placement.cableLength === 15 ? 'selected' : ''}`}
+                            onClick={() => selectPrinterOption(idx, 'cableLength', 15)}
+                          >
+                            &gt; 10M
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {placement.canCable === false && (
+                      <div className="form-group">
+                        <label>Distance from router location</label>
+                        <div className="button-group">
+                          <div
+                            className={`button-group-item ${placement.distance === 'under10' ? 'selected' : ''}`}
+                            onClick={() => selectPrinterOption(idx, 'distance', 'under10')}
+                          >
+                            &lt; 10M
+                          </div>
+                          <div
+                            className={`button-group-item ${placement.distance === 'over10' ? 'selected' : ''}`}
+                            onClick={() => selectPrinterOption(idx, 'distance', 'over10')}
+                          >
+                            &gt; 10M
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+                printerIndex++;
+              }
+
+              // Kitchen printers
+              for (let i = 0; i < state.printers.kitchen; i++) {
+                const idx = printerIndex;
+                const placement = state.printersPlacement[idx] || { type: 'kitchen' };
+                printerForms.push(
+                  <div key={`kitchen-${i}`} className="printer-card">
+                    <div className="printer-header">Kitchen Printer #{i + 1}</div>
+
+                    <div className="form-group">
+                      <label>Physical Location</label>
+                      <select
+                        value={placement.location || ''}
+                        onChange={(e) => {
+                          updatePrinterPlacement(idx, { type: 'kitchen', location: e.target.value as LocationType });
+                        }}
+                      >
+                        <option value="">Select location...</option>
+                        <option value="front_of_house_counter">Front of House Counter</option>
+                        <option value="back_of_house_kitchen">Back of House Kitchen</option>
+                        <option value="back_of_house_expeditor">Back of House Expeditor</option>
+                        <option value="bar">Bar</option>
+                        <option value="back_office">Back Office</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </div>
+
+                    {placement.location === 'other' && (
+                      <div className="form-group">
+                        <label>Specify Location</label>
+                        <input
+                          type="text"
+                          placeholder="e.g., Patio Bar"
+                          value={placement.locationCustom || ''}
+                          onChange={(e) => updatePrinterPlacement(idx, { locationCustom: e.target.value })}
+                        />
+                      </div>
+                    )}
+
+                    <div className="form-group">
+                      <label>Paired to Which Station?</label>
+                      <select
+                        value={placement.stationId || ''}
+                        onChange={(e) => updatePrinterPlacement(idx, { stationId: e.target.value })}
+                      >
+                        <option value="">Select station...</option>
+                        {state.stations.map((s, sIdx) => (
+                          <option key={s.id} value={s.id.toString()}>Station {sIdx + 1}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="form-group">
+                      <label>Can we run a visible cable to this printer?</label>
+                      <div className="button-group">
+                        <div
+                          className={`button-group-item ${placement.canCable === true ? 'selected' : ''}`}
+                          onClick={() => selectPrinterOption(idx, 'canCable', true)}
+                        >
+                          Yes
+                        </div>
+                        <div
+                          className={`button-group-item ${placement.canCable === false ? 'selected' : ''}`}
+                          onClick={() => selectPrinterOption(idx, 'canCable', false)}
+                        >
+                          No
+                        </div>
+                      </div>
+                    </div>
+
+                    {placement.canCable === true && (
+                      <div className="form-group">
+                        <label>Is there an ethernet outlet at this location?</label>
+                        <p className="help-text">An ethernet outlet is a wall-mounted socket (like a power outlet) with in-wall cabling</p>
+                        <div className="button-group">
+                          <div
+                            className={`button-group-item ${placement.hasOutlet === true ? 'selected' : ''}`}
+                            onClick={() => selectPrinterOption(idx, 'hasOutlet', true)}
+                          >
+                            Yes
+                          </div>
+                          <div
+                            className={`button-group-item ${placement.hasOutlet === false ? 'selected' : ''}`}
+                            onClick={() => selectPrinterOption(idx, 'hasOutlet', false)}
+                          >
+                            No
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {placement.canCable === true && placement.hasOutlet !== undefined && (
+                      <div className="form-group">
+                        <label>Cable length needed</label>
+                        <div className="button-group">
+                          <div
+                            className={`button-group-item ${placement.cableLength === 5 ? 'selected' : ''}`}
+                            onClick={() => selectPrinterOption(idx, 'cableLength', 5)}
+                          >
+                            &lt; 5M
+                          </div>
+                          <div
+                            className={`button-group-item ${placement.cableLength === 10 ? 'selected' : ''}`}
+                            onClick={() => selectPrinterOption(idx, 'cableLength', 10)}
+                          >
+                            &lt; 10M
+                          </div>
+                          <div
+                            className={`button-group-item ${placement.cableLength === 15 ? 'selected' : ''}`}
+                            onClick={() => selectPrinterOption(idx, 'cableLength', 15)}
+                          >
+                            &gt; 10M
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {placement.canCable === false && (
+                      <div className="form-group">
+                        <label>Distance from router location</label>
+                        <div className="button-group">
+                          <div
+                            className={`button-group-item ${placement.distance === 'under10' ? 'selected' : ''}`}
+                            onClick={() => selectPrinterOption(idx, 'distance', 'under10')}
+                          >
+                            &lt; 10M
+                          </div>
+                          <div
+                            className={`button-group-item ${placement.distance === 'over10' ? 'selected' : ''}`}
+                            onClick={() => selectPrinterOption(idx, 'distance', 'over10')}
+                          >
+                            &gt; 10M
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+                printerIndex++;
+              }
+
+              // Label printers
+              for (let i = 0; i < state.printers.label; i++) {
+                const idx = printerIndex;
+                const placement = state.printersPlacement[idx] || { type: 'label' };
+                printerForms.push(
+                  <div key={`label-${i}`} className="printer-card">
+                    <div className="printer-header">Label Printer #{i + 1}</div>
+
+                    <div className="form-group">
+                      <label>Physical Location</label>
+                      <select
+                        value={placement.location || ''}
+                        onChange={(e) => {
+                          updatePrinterPlacement(idx, { type: 'label', location: e.target.value as LocationType });
+                        }}
+                      >
+                        <option value="">Select location...</option>
+                        <option value="front_of_house_counter">Front of House Counter</option>
+                        <option value="back_of_house_kitchen">Back of House Kitchen</option>
+                        <option value="back_of_house_expeditor">Back of House Expeditor</option>
+                        <option value="bar">Bar</option>
+                        <option value="back_office">Back Office</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </div>
+
+                    {placement.location === 'other' && (
+                      <div className="form-group">
+                        <label>Specify Location</label>
+                        <input
+                          type="text"
+                          placeholder="e.g., Patio Bar"
+                          value={placement.locationCustom || ''}
+                          onChange={(e) => updatePrinterPlacement(idx, { locationCustom: e.target.value })}
+                        />
+                      </div>
+                    )}
+
+                    <div className="form-group">
+                      <label>Paired to Which Station?</label>
+                      <select
+                        value={placement.stationId || ''}
+                        onChange={(e) => updatePrinterPlacement(idx, { stationId: e.target.value })}
+                      >
+                        <option value="">Select station...</option>
+                        {state.stations.map((s, sIdx) => (
+                          <option key={s.id} value={s.id.toString()}>Station {sIdx + 1}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="form-group">
+                      <label>Can we run a visible cable to this printer?</label>
+                      <div className="button-group">
+                        <div
+                          className={`button-group-item ${placement.canCable === true ? 'selected' : ''}`}
+                          onClick={() => selectPrinterOption(idx, 'canCable', true)}
+                        >
+                          Yes
+                        </div>
+                        <div
+                          className={`button-group-item ${placement.canCable === false ? 'selected' : ''}`}
+                          onClick={() => selectPrinterOption(idx, 'canCable', false)}
+                        >
+                          No
+                        </div>
+                      </div>
+                    </div>
+
+                    {placement.canCable === true && (
+                      <div className="form-group">
+                        <label>Is there an ethernet outlet at this location?</label>
+                        <p className="help-text">An ethernet outlet is a wall-mounted socket (like a power outlet) with in-wall cabling</p>
+                        <div className="button-group">
+                          <div
+                            className={`button-group-item ${placement.hasOutlet === true ? 'selected' : ''}`}
+                            onClick={() => selectPrinterOption(idx, 'hasOutlet', true)}
+                          >
+                            Yes
+                          </div>
+                          <div
+                            className={`button-group-item ${placement.hasOutlet === false ? 'selected' : ''}`}
+                            onClick={() => selectPrinterOption(idx, 'hasOutlet', false)}
+                          >
+                            No
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {placement.canCable === true && placement.hasOutlet !== undefined && (
+                      <div className="form-group">
+                        <label>Cable length needed</label>
+                        <div className="button-group">
+                          <div
+                            className={`button-group-item ${placement.cableLength === 5 ? 'selected' : ''}`}
+                            onClick={() => selectPrinterOption(idx, 'cableLength', 5)}
+                          >
+                            &lt; 5M
+                          </div>
+                          <div
+                            className={`button-group-item ${placement.cableLength === 10 ? 'selected' : ''}`}
+                            onClick={() => selectPrinterOption(idx, 'cableLength', 10)}
+                          >
+                            &lt; 10M
+                          </div>
+                          <div
+                            className={`button-group-item ${placement.cableLength === 15 ? 'selected' : ''}`}
+                            onClick={() => selectPrinterOption(idx, 'cableLength', 15)}
+                          >
+                            &gt; 10M
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {placement.canCable === false && (
+                      <div className="form-group">
+                        <label>Distance from router location</label>
+                        <div className="button-group">
+                          <div
+                            className={`button-group-item ${placement.distance === 'under10' ? 'selected' : ''}`}
+                            onClick={() => selectPrinterOption(idx, 'distance', 'under10')}
+                          >
+                            &lt; 10M
+                          </div>
+                          <div
+                            className={`button-group-item ${placement.distance === 'over10' ? 'selected' : ''}`}
+                            onClick={() => selectPrinterOption(idx, 'distance', 'over10')}
+                          >
+                            &gt; 10M
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+                printerIndex++;
+              }
+
+              return printerForms;
+            })()}
 
             <div className="nav-buttons">
               <button className="nav-btn secondary" onClick={previousStep}>
@@ -684,6 +1137,91 @@ export default function Home() {
               </div>
             </div>
 
+            {state.infrastructure.hasInternet === true && (
+              <div>
+                <div className="form-group">
+                  <label>Where will the Waffle router be located?</label>
+                  <select
+                    value={state.infrastructure.routerLocation || ''}
+                    onChange={(e) => updateInfraField('routerLocation', e.target.value)}
+                  >
+                    <option value="">Select location...</option>
+                    <option value="front_of_house">Front of House</option>
+                    <option value="back_of_house">Back of House</option>
+                    <option value="back_office">Back Office</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Does the customer's ISP router have at least 1 available LAN port for our use?</label>
+                  <p className="help-text">We need to connect our Waffle router to their ISP router via 1 LAN port</p>
+                  <div className="button-group">
+                    <div
+                      className={`button-group-item ${
+                        state.infrastructure.hasPort === true ? 'selected' : ''
+                      }`}
+                      onClick={() => selectInfraOption('hasPort', true)}
+                    >
+                      Yes
+                    </div>
+                    <div
+                      className={`button-group-item ${
+                        state.infrastructure.hasPort === false ? 'selected' : ''
+                      }`}
+                      onClick={() => selectInfraOption('hasPort', false)}
+                    >
+                      No / Not Sure
+                    </div>
+                  </div>
+                </div>
+
+                {state.infrastructure.hasPort === false && (
+                  <div className="warning">
+                    ⚠️ Please communicate to the customer that we need at least 1 LAN port from their ISP router to connect our Waffle router ecosystem. If they don't have any available ports, they'll need to contact their ISP or use our SIM card option instead.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {state.infrastructure.hasInternet === false && (
+              <div>
+                <div className="form-group">
+                  <label>SIM Card Provider</label>
+                  <select
+                    value={state.infrastructure.simProvider || ''}
+                    onChange={(e) => updateInfraField('simProvider', e.target.value)}
+                  >
+                    <option value="">Select provider...</option>
+                    <option value="singtel_heya">Singtel Heya (Recommended)</option>
+                    <option value="m1_maxx">M1 Maxx (Recommended)</option>
+                    <option value="starhub_prepaid">Starhub Prepaid (Recommended)</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+
+                {state.infrastructure.simProvider === 'other' && (
+                  <div>
+                    <div className="form-group">
+                      <label>Specify SIM Provider</label>
+                      <input
+                        type="text"
+                        placeholder="e.g., Circles Life, TPG"
+                        value={state.infrastructure.simProviderOther || ''}
+                        onChange={(e) => updateInfraField('simProviderOther', e.target.value)}
+                      />
+                    </div>
+                    <div className="warning">
+                      ⚠️ Non-recommended SIM providers (Circles Life, TPG) may have network compatibility issues with our routers. Verify with customer before proceeding.
+                    </div>
+                  </div>
+                )}
+
+                <div className="info" style={{marginTop: '12px'}}>
+                  ℹ️ Note: Our MR505 router requires a physical SIM card (no eSIM support). Ensure the SIM card is the correct size.
+                </div>
+              </div>
+            )}
+
             <div className="nav-buttons">
               <button className="nav-btn secondary" onClick={previousStep}>
                 ← Previous
@@ -699,11 +1237,132 @@ export default function Home() {
         {currentStep === 5 && (
           <div className="card">
             <h2>Order Summary</h2>
+
             <div className="review-section">
               <h3>Customer</h3>
               <div className="review-item">
                 <strong>{state.customerName || 'Not specified'}</strong>
               </div>
+            </div>
+
+            <div className="review-section">
+              <h3>POS Stations</h3>
+              {state.stations.map((station, idx) => (
+                <div key={station.id}>
+                  <div className="review-item"><strong>Station {idx + 1}</strong></div>
+                  {station.hasPOS && <div className="review-item review-item-indent">1x iPad (POS)</div>}
+                  {station.hasCDS && <div className="review-item review-item-indent">1x iPad (CDS)</div>}
+                </div>
+              ))}
+            </div>
+
+            {(state.peripherals.stands > 0 || state.peripherals.drawers > 0 || state.peripherals.readers > 0) && (
+              <div className="review-section">
+                <h3>Peripherals</h3>
+                {(() => {
+                  let standsRemaining = state.peripherals.stands || 0;
+                  let drawersRemaining = state.peripherals.drawers || 0;
+                  let readersRemaining = state.peripherals.readers || 0;
+
+                  const allocations = state.stations.map((station, idx) => {
+                    const stationPeripherals = [];
+
+                    if (standsRemaining > 0 && (station.hasPOS || station.hasCDS)) {
+                      stationPeripherals.push('1x POS Stand');
+                      standsRemaining--;
+                    }
+
+                    if (drawersRemaining > 0) {
+                      stationPeripherals.push('1x Cash Drawer');
+                      drawersRemaining--;
+                    }
+
+                    if (readersRemaining > 0 && station.hasPOS) {
+                      stationPeripherals.push('1x Card Reader');
+                      readersRemaining--;
+                    }
+
+                    return stationPeripherals.length > 0 ? (
+                      <div key={idx}>
+                        <div className="review-item"><strong>Station {idx + 1}:</strong></div>
+                        {stationPeripherals.map((item, i) => (
+                          <div key={i} className="review-item review-item-indent">{item}</div>
+                        ))}
+                      </div>
+                    ) : null;
+                  });
+
+                  return (
+                    <>
+                      {allocations}
+                      {(standsRemaining > 0 || drawersRemaining > 0 || readersRemaining > 0) && (
+                        <div style={{marginTop: '12px'}}>
+                          <div className="review-item"><strong>Unallocated (spares):</strong></div>
+                          {standsRemaining > 0 && <div className="review-item review-item-indent">{standsRemaining}x POS Stand{standsRemaining > 1 ? 's' : ''}</div>}
+                          {drawersRemaining > 0 && <div className="review-item review-item-indent">{drawersRemaining}x Cash Drawer{drawersRemaining > 1 ? 's' : ''}</div>}
+                          {readersRemaining > 0 && <div className="review-item review-item-indent">{readersRemaining}x Card Reader{readersRemaining > 1 ? 's' : ''}</div>}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            )}
+
+            {(() => {
+              const printersByLocation: { [key: string]: any[] } = {};
+
+              state.printersPlacement.forEach(placement => {
+                if (placement && placement.location) {
+                  const loc = placement.location === 'other' ? (placement.locationCustom || 'Other') : formatLocation(placement.location);
+                  if (loc) {
+                    if (!printersByLocation[loc]) {
+                      printersByLocation[loc] = [];
+                    }
+
+                    printersByLocation[loc].push({
+                      type: placement.type || 'unknown',
+                      placement: placement,
+                      stationName: getStationName(placement.stationId)
+                    });
+                  }
+                }
+              });
+
+              return Object.keys(printersByLocation).length > 0 ? (
+                <div className="review-section">
+                  <h3>Printers</h3>
+                  {Object.keys(printersByLocation).map(location => (
+                    <div key={location}>
+                      <div className="review-item"><strong>{location}</strong></div>
+                      {printersByLocation[location].map((printer, idx) => {
+                        const model = getPrinterModel(printer.type, printer.placement);
+                        const connection = getPrinterConnection(printer.placement);
+                        const typeLabel = printer.type.charAt(0).toUpperCase() + printer.type.slice(1);
+                        return (
+                          <div key={idx} className="review-item review-item-indent">
+                            1x {model} {typeLabel} ({connection}, paired to {printer.stationName})
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              ) : null;
+            })()}
+
+            <div className="review-section">
+              <h3>Network Equipment</h3>
+              {(() => {
+                const network = calculateNetworkEquipment();
+                return (
+                  <>
+                    <div className="review-item">{network.router}</div>
+                    {network.switch && <div className="review-item">{network.switch}</div>}
+                    {network.cables && <div className="review-item">{network.cables}</div>}
+                  </>
+                );
+              })()}
             </div>
 
             <div className="review-section">
@@ -985,6 +1644,17 @@ export default function Home() {
           margin-top: 12px;
         }
 
+        .warning {
+          background: #fff7ed;
+          border: 1px solid #fed7aa;
+          color: #9a3412;
+          padding: 12px 16px;
+          border-radius: 8px;
+          font-size: 14px;
+          margin-top: 12px;
+          line-height: 1.5;
+        }
+
         .help-text {
           font-size: 13px;
           color: #71717a;
@@ -1048,6 +1718,25 @@ export default function Home() {
           font-size: 14px;
         }
 
+        .form-group select {
+          width: 100%;
+          padding: 10px 12px;
+          border: 1px solid #e4e4e7;
+          border-radius: 8px;
+          font-size: 16px;
+          font-family: inherit;
+          background: white;
+        }
+
+        .form-group input[type="text"] {
+          width: 100%;
+          padding: 10px 12px;
+          border: 1px solid #e4e4e7;
+          border-radius: 8px;
+          font-size: 16px;
+          font-family: inherit;
+        }
+
         .button-group {
           display: flex;
           gap: 8px;
@@ -1078,6 +1767,19 @@ export default function Home() {
           border-color: #0a0a0a;
         }
 
+        .printer-card {
+          border: 1px solid #e4e4e7;
+          border-radius: 8px;
+          padding: 16px;
+          margin-bottom: 12px;
+        }
+
+        .printer-header {
+          font-weight: 600;
+          margin-bottom: 12px;
+          color: #0a0a0a;
+        }
+
         .review-section {
           margin-bottom: 24px;
         }
@@ -1093,6 +1795,11 @@ export default function Home() {
         .review-item {
           padding: 8px 0;
           font-size: 14px;
+        }
+
+        .review-item-indent {
+          padding-left: 20px;
+          color: #71717a;
         }
 
         .complexity-badge {
