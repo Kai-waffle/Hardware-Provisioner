@@ -243,12 +243,12 @@ export default function Home() {
     );
 
     if (state.infrastructure.hasInternet) {
-      router = hasLongRangeNeeds ? '1x ER706W4G-V2 Router' : '1x ER605W Router';
+      router = hasLongRangeNeeds ? '1x ER706W Router' : '1x ER605W Router';
       if (state.infrastructure.hasPort === false || wiredCount > 1) {
         needsSwitch = true;
       }
     } else {
-      router = hasLongRangeNeeds ? '1x ER706W Router' : '1x MR505 Router';
+      router = hasLongRangeNeeds ? '1x ER706W4G-V2 Router' : '1x MR505 Router';
       const routerPorts = hasLongRangeNeeds ? 4 : 3;
       if (wiredCount > routerPorts) {
         needsSwitch = true;

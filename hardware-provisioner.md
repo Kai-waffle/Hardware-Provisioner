@@ -1,6 +1,6 @@
 # Waffle Hardware Provisioner
 
-**Version 4.0** | Last Updated: December 2, 2025
+**Version 4.1** | Last Updated: December 2, 2025
 
 ---
 
@@ -388,9 +388,9 @@ The provisioner selects the optimal router model based on:
 | Internet Source | Range Need | Router Model |
 |----------------|------------|--------------|
 | ISP | Standard | **ER605W Router** |
-| ISP | Long-range | **ER706W4G-V2 Router** |
+| ISP | Long-range | **ER706W Router** |
 | SIM Card | Standard | **MR505 Router** |
-| SIM Card | Long-range | **ER706W Router** |
+| SIM Card | Long-range | **ER706W4G-V2 Router** |
 
 **Long-range need** is determined by:
 - Any WiFi printer with distance > 10M from router
@@ -500,13 +500,13 @@ This section explains the **business reasoning** behind automatic recommendation
 **Customer Has Internet (ISP):**
 
 1. **Check range needs:**
-   - Any printer >10M requiring WiFi? → **ER706W4G-V2** (long-range)
+   - Any printer >10M requiring WiFi? → **ER706W** (long-range)
    - All printers within range? → **ER605W** (standard)
 
 **Customer Has NO Internet (SIM Card):**
 
 1. **Check range needs:**
-   - Any printer >10M requiring WiFi? → **ER706W** (long-range, SIM)
+   - Any printer >10M requiring WiFi? → **ER706W4G-V2** (long-range, SIM)
    - All printers within range? → **MR505** (standard, SIM)
 
 **Why this matters:**
@@ -1180,9 +1180,9 @@ Frontend (success message)
 
 **Expected Routers:**
 - **ER605W**: ISP + standard range
-- **ER706W4G-V2**: ISP + long-range
+- **ER706W**: ISP + long-range
 - **MR505**: SIM + standard range
-- **ER706W**: SIM + long-range
+- **ER706W4G-V2**: SIM + long-range
 
 ---
 
@@ -1551,7 +1551,24 @@ Currently, no specific future features have been defined beyond addressing the k
 
 ## Version History
 
-### v4.0 - December 2, 2025 (Current)
+### v4.1 - December 2, 2025 (Current)
+
+**Critical Bug Fix:**
+- ✅ **Fixed router model swap:** Corrected router selection logic
+  - ISP + long-range now correctly recommends **ER706W** (was incorrectly showing ER706W4G-V2)
+  - SIM + long-range now correctly recommends **ER706W4G-V2** (was incorrectly showing ER706W)
+- ✅ **Updated documentation:** All references to router models now reflect correct specifications
+  - ER706W: LAN-only router for ISP connections
+  - ER706W4G-V2: 4G/SIM-compatible router for cellular connections
+
+**Impact:**
+- Prevents ordering wrong router models for customer setups
+- Ensures ISP customers get LAN routers and SIM customers get 4G-compatible routers
+- Critical fix for hardware procurement accuracy
+
+---
+
+### v4.0 - December 2, 2025
 
 **Major Changes:**
 - ✅ **Updated question text:** "Can we run a visible cable from our router to this printer?"
@@ -1560,7 +1577,7 @@ Currently, no specific future features have been defined beyond addressing the k
 - ✅ **Ethernet outlet dual-cable setup:** When using ethernet outlets, now asks for two cable lengths:
   - Router to ethernet outlet (1M, 3M, 5M)
   - Ethernet outlet to printer (1M, 3M, 5M)
-- ✅ **Fixed router selection logic:** Only selects long-range routers (ER706W4G-V2/ER706W) when WiFi printer distance is confirmed > 10M
+- ✅ **Fixed router selection logic:** Only selects long-range routers (ER706W/ER706W4G-V2) when WiFi printer distance is confirmed > 10M
 - ✅ **Power points notice:** Added important notice on review page reminding AMs to verify power point availability
 - ✅ **Improved cable counting:** Now counts all cable lengths (1M, 3M, 5M, 10M) including outlet cables
 
