@@ -200,7 +200,7 @@ export default function Home() {
     placement: PrinterPlacement
   ): string => {
     if (type === 'label') return 'ZD411';
-    if (placement.hasOutlet || (placement.canCable && placement.cableLength !== 15)) {
+    if (placement.hasOutlet || (placement.canCable && placement.cableLength !== 'wifi')) {
       return 'TM-T82X';
     }
     return 'M30-III';
@@ -208,11 +208,16 @@ export default function Home() {
 
   const getPrinterConnection = (placement: PrinterPlacement): string => {
     if (placement.hasOutlet) {
-      return `LAN ${placement.cableLength || 5}M`;
+      const cable1 = placement.routerToOutletCableLength || 1;
+      const cable2 = placement.outletToPrinterCableLength || 1;
+      return `LAN ${cable1}M + ${cable2}M (via outlet)`;
     }
     if (placement.canCable) {
-      if (placement.cableLength === 15) {
-        return 'WiFi (>10M, recommend M30-III)';
+      if (placement.cableLength === 'wifi') {
+        if (placement.distance === 'over10') {
+          return 'WiFi (>10M, may need router upgrade)';
+        }
+        return 'WiFi';
       }
       return `LAN ${placement.cableLength}M`;
     }
@@ -228,13 +233,13 @@ export default function Home() {
     let wiredCount = 0;
 
     state.printersPlacement.forEach((p) => {
-      if (p && (p.hasOutlet || (p.canCable && p.cableLength !== 15))) {
+      if (p && (p.hasOutlet || (p.canCable && p.cableLength !== 'wifi'))) {
         wiredCount++;
       }
     });
 
     const hasLongRangeNeeds = state.printersPlacement.some(
-      (p) => p && !p.hasOutlet && !p.canCable && p.distance === 'over10'
+      (p) => p && ((!p.canCable && !p.hasOutlet) || (p.canCable && p.cableLength === 'wifi')) && p.distance === 'over10'
     );
 
     if (state.infrastructure.hasInternet) {
@@ -250,15 +255,29 @@ export default function Home() {
       }
     }
 
-    const cableCounts: { [key: number]: number } = { 5: 0, 10: 0 };
+    const cableCounts: { [key: number]: number } = { 1: 0, 3: 0, 5: 0, 10: 0 };
     state.printersPlacement.forEach((p) => {
-      if (p && (p.hasOutlet || p.canCable)) {
-        if (p.cableLength === 5) cableCounts[5]++;
-        else if (p.cableLength === 10) cableCounts[10]++;
+      if (p) {
+        if (p.hasOutlet) {
+          if (p.routerToOutletCableLength === 1) cableCounts[1]++;
+          else if (p.routerToOutletCableLength === 3) cableCounts[3]++;
+          else if (p.routerToOutletCableLength === 5) cableCounts[5]++;
+
+          if (p.outletToPrinterCableLength === 1) cableCounts[1]++;
+          else if (p.outletToPrinterCableLength === 3) cableCounts[3]++;
+          else if (p.outletToPrinterCableLength === 5) cableCounts[5]++;
+        } else if (p.canCable && p.cableLength !== 'wifi') {
+          if (p.cableLength === 1) cableCounts[1]++;
+          else if (p.cableLength === 3) cableCounts[3]++;
+          else if (p.cableLength === 5) cableCounts[5]++;
+          else if (p.cableLength === 10) cableCounts[10]++;
+        }
       }
     });
 
     let cables = '';
+    if (cableCounts[1] > 0) cables += `${cableCounts[1]}x 1M Ethernet Cable, `;
+    if (cableCounts[3] > 0) cables += `${cableCounts[3]}x 3M Ethernet Cable, `;
     if (cableCounts[5] > 0) cables += `${cableCounts[5]}x 5M Ethernet Cable, `;
     if (cableCounts[10] > 0) cables += `${cableCounts[10]}x 10M Ethernet Cable`;
     cables = cables.replace(/, $/, '');
@@ -276,14 +295,14 @@ export default function Home() {
       state.printers.receipt + state.printers.kitchen + state.printers.label;
 
     state.printersPlacement.forEach((p) => {
-      if (p && (p.hasOutlet || (p.canCable && p.cableLength !== 15))) {
+      if (p && (p.hasOutlet || (p.canCable && p.cableLength !== 'wifi'))) {
         wiredPrinters++;
       }
     });
 
     const hasSwitch = calculateNetworkEquipment().switch !== null;
     const hasLabelWithoutCable = state.printersPlacement.some(
-      (p) => p && p.type === 'label' && !p.hasOutlet && !p.canCable
+      (p) => p && p.type === 'label' && !p.hasOutlet && (!p.canCable || p.cableLength === 'wifi')
     );
 
     if (totalPrinters > 5 || hasLabelWithoutCable) {
@@ -728,7 +747,7 @@ export default function Home() {
                     </div>
 
                     <div className="form-group">
-                      <label>Can we run a visible cable to this printer?</label>
+                      <label>Can we run a visible cable from our router to this printer?</label>
                       <div className="button-group">
                         <div
                           className={`button-group-item ${placement.canCable === true ? 'selected' : ''}`}
@@ -746,6 +765,45 @@ export default function Home() {
                     </div>
 
                     {placement.canCable === true && (
+                      <div className="form-group">
+                        <label>Cable length from router to printer</label>
+                        <p className="help-text">Choose the cable length that will reach from the router directly to the printer</p>
+                        <div className="button-group">
+                          <div
+                            className={`button-group-item ${placement.cableLength === 1 ? 'selected' : ''}`}
+                            onClick={() => selectPrinterOption(idx, 'cableLength', 1)}
+                          >
+                            1M
+                          </div>
+                          <div
+                            className={`button-group-item ${placement.cableLength === 3 ? 'selected' : ''}`}
+                            onClick={() => selectPrinterOption(idx, 'cableLength', 3)}
+                          >
+                            3M
+                          </div>
+                          <div
+                            className={`button-group-item ${placement.cableLength === 5 ? 'selected' : ''}`}
+                            onClick={() => selectPrinterOption(idx, 'cableLength', 5)}
+                          >
+                            5M
+                          </div>
+                          <div
+                            className={`button-group-item ${placement.cableLength === 10 ? 'selected' : ''}`}
+                            onClick={() => selectPrinterOption(idx, 'cableLength', 10)}
+                          >
+                            10M
+                          </div>
+                          <div
+                            className={`button-group-item ${placement.cableLength === 'wifi' ? 'selected' : ''}`}
+                            onClick={() => selectPrinterOption(idx, 'cableLength', 'wifi')}
+                          >
+                            Use WiFi Instead
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {placement.canCable === false && (
                       <div className="form-group">
                         <label>Is there an ethernet outlet at this location?</label>
                         <p className="help-text">An ethernet outlet is a wall-mounted socket (like a power outlet) with in-wall cabling</p>
@@ -766,33 +824,61 @@ export default function Home() {
                       </div>
                     )}
 
-                    {placement.canCable === true && placement.hasOutlet !== undefined && (
-                      <div className="form-group">
-                        <label>Cable length needed</label>
-                        <div className="button-group">
-                          <div
-                            className={`button-group-item ${placement.cableLength === 5 ? 'selected' : ''}`}
-                            onClick={() => selectPrinterOption(idx, 'cableLength', 5)}
-                          >
-                            &lt; 5M
-                          </div>
-                          <div
-                            className={`button-group-item ${placement.cableLength === 10 ? 'selected' : ''}`}
-                            onClick={() => selectPrinterOption(idx, 'cableLength', 10)}
-                          >
-                            &lt; 10M
-                          </div>
-                          <div
-                            className={`button-group-item ${placement.cableLength === 15 ? 'selected' : ''}`}
-                            onClick={() => selectPrinterOption(idx, 'cableLength', 15)}
-                          >
-                            &gt; 10M
+                    {placement.canCable === false && placement.hasOutlet === true && (
+                      <>
+                        <div className="form-group">
+                          <label>Cable length from router to ethernet outlet</label>
+                          <p className="help-text">First cable segment: Router → Wall Outlet</p>
+                          <div className="button-group">
+                            <div
+                              className={`button-group-item ${placement.routerToOutletCableLength === 1 ? 'selected' : ''}`}
+                              onClick={() => selectPrinterOption(idx, 'routerToOutletCableLength', 1)}
+                            >
+                              1M
+                            </div>
+                            <div
+                              className={`button-group-item ${placement.routerToOutletCableLength === 3 ? 'selected' : ''}`}
+                              onClick={() => selectPrinterOption(idx, 'routerToOutletCableLength', 3)}
+                            >
+                              3M
+                            </div>
+                            <div
+                              className={`button-group-item ${placement.routerToOutletCableLength === 5 ? 'selected' : ''}`}
+                              onClick={() => selectPrinterOption(idx, 'routerToOutletCableLength', 5)}
+                            >
+                              5M
+                            </div>
                           </div>
                         </div>
-                      </div>
+
+                        <div className="form-group">
+                          <label>Cable length from ethernet outlet to printer</label>
+                          <p className="help-text">Second cable segment: Wall Outlet → Printer</p>
+                          <div className="button-group">
+                            <div
+                              className={`button-group-item ${placement.outletToPrinterCableLength === 1 ? 'selected' : ''}`}
+                              onClick={() => selectPrinterOption(idx, 'outletToPrinterCableLength', 1)}
+                            >
+                              1M
+                            </div>
+                            <div
+                              className={`button-group-item ${placement.outletToPrinterCableLength === 3 ? 'selected' : ''}`}
+                              onClick={() => selectPrinterOption(idx, 'outletToPrinterCableLength', 3)}
+                            >
+                              3M
+                            </div>
+                            <div
+                              className={`button-group-item ${placement.outletToPrinterCableLength === 5 ? 'selected' : ''}`}
+                              onClick={() => selectPrinterOption(idx, 'outletToPrinterCableLength', 5)}
+                            >
+                              5M
+                            </div>
+                          </div>
+                        </div>
+                      </>
                     )}
 
-                    {placement.canCable === false && (
+                    {((placement.canCable === true && placement.cableLength === 'wifi') || (placement.canCable === false && placement.hasOutlet === false)) && (
                       <div className="form-group">
                         <label>Distance from router location</label>
                         <div className="button-group">
@@ -868,7 +954,7 @@ export default function Home() {
                     </div>
 
                     <div className="form-group">
-                      <label>Can we run a visible cable to this printer?</label>
+                      <label>Can we run a visible cable from our router to this printer?</label>
                       <div className="button-group">
                         <div
                           className={`button-group-item ${placement.canCable === true ? 'selected' : ''}`}
@@ -886,6 +972,45 @@ export default function Home() {
                     </div>
 
                     {placement.canCable === true && (
+                      <div className="form-group">
+                        <label>Cable length from router to printer</label>
+                        <p className="help-text">Choose the cable length that will reach from the router directly to the printer</p>
+                        <div className="button-group">
+                          <div
+                            className={`button-group-item ${placement.cableLength === 1 ? 'selected' : ''}`}
+                            onClick={() => selectPrinterOption(idx, 'cableLength', 1)}
+                          >
+                            1M
+                          </div>
+                          <div
+                            className={`button-group-item ${placement.cableLength === 3 ? 'selected' : ''}`}
+                            onClick={() => selectPrinterOption(idx, 'cableLength', 3)}
+                          >
+                            3M
+                          </div>
+                          <div
+                            className={`button-group-item ${placement.cableLength === 5 ? 'selected' : ''}`}
+                            onClick={() => selectPrinterOption(idx, 'cableLength', 5)}
+                          >
+                            5M
+                          </div>
+                          <div
+                            className={`button-group-item ${placement.cableLength === 10 ? 'selected' : ''}`}
+                            onClick={() => selectPrinterOption(idx, 'cableLength', 10)}
+                          >
+                            10M
+                          </div>
+                          <div
+                            className={`button-group-item ${placement.cableLength === 'wifi' ? 'selected' : ''}`}
+                            onClick={() => selectPrinterOption(idx, 'cableLength', 'wifi')}
+                          >
+                            Use WiFi Instead
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {placement.canCable === false && (
                       <div className="form-group">
                         <label>Is there an ethernet outlet at this location?</label>
                         <p className="help-text">An ethernet outlet is a wall-mounted socket (like a power outlet) with in-wall cabling</p>
@@ -906,33 +1031,61 @@ export default function Home() {
                       </div>
                     )}
 
-                    {placement.canCable === true && placement.hasOutlet !== undefined && (
-                      <div className="form-group">
-                        <label>Cable length needed</label>
-                        <div className="button-group">
-                          <div
-                            className={`button-group-item ${placement.cableLength === 5 ? 'selected' : ''}`}
-                            onClick={() => selectPrinterOption(idx, 'cableLength', 5)}
-                          >
-                            &lt; 5M
-                          </div>
-                          <div
-                            className={`button-group-item ${placement.cableLength === 10 ? 'selected' : ''}`}
-                            onClick={() => selectPrinterOption(idx, 'cableLength', 10)}
-                          >
-                            &lt; 10M
-                          </div>
-                          <div
-                            className={`button-group-item ${placement.cableLength === 15 ? 'selected' : ''}`}
-                            onClick={() => selectPrinterOption(idx, 'cableLength', 15)}
-                          >
-                            &gt; 10M
+                    {placement.canCable === false && placement.hasOutlet === true && (
+                      <>
+                        <div className="form-group">
+                          <label>Cable length from router to ethernet outlet</label>
+                          <p className="help-text">First cable segment: Router → Wall Outlet</p>
+                          <div className="button-group">
+                            <div
+                              className={`button-group-item ${placement.routerToOutletCableLength === 1 ? 'selected' : ''}`}
+                              onClick={() => selectPrinterOption(idx, 'routerToOutletCableLength', 1)}
+                            >
+                              1M
+                            </div>
+                            <div
+                              className={`button-group-item ${placement.routerToOutletCableLength === 3 ? 'selected' : ''}`}
+                              onClick={() => selectPrinterOption(idx, 'routerToOutletCableLength', 3)}
+                            >
+                              3M
+                            </div>
+                            <div
+                              className={`button-group-item ${placement.routerToOutletCableLength === 5 ? 'selected' : ''}`}
+                              onClick={() => selectPrinterOption(idx, 'routerToOutletCableLength', 5)}
+                            >
+                              5M
+                            </div>
                           </div>
                         </div>
-                      </div>
+
+                        <div className="form-group">
+                          <label>Cable length from ethernet outlet to printer</label>
+                          <p className="help-text">Second cable segment: Wall Outlet → Printer</p>
+                          <div className="button-group">
+                            <div
+                              className={`button-group-item ${placement.outletToPrinterCableLength === 1 ? 'selected' : ''}`}
+                              onClick={() => selectPrinterOption(idx, 'outletToPrinterCableLength', 1)}
+                            >
+                              1M
+                            </div>
+                            <div
+                              className={`button-group-item ${placement.outletToPrinterCableLength === 3 ? 'selected' : ''}`}
+                              onClick={() => selectPrinterOption(idx, 'outletToPrinterCableLength', 3)}
+                            >
+                              3M
+                            </div>
+                            <div
+                              className={`button-group-item ${placement.outletToPrinterCableLength === 5 ? 'selected' : ''}`}
+                              onClick={() => selectPrinterOption(idx, 'outletToPrinterCableLength', 5)}
+                            >
+                              5M
+                            </div>
+                          </div>
+                        </div>
+                      </>
                     )}
 
-                    {placement.canCable === false && (
+                    {((placement.canCable === true && placement.cableLength === 'wifi') || (placement.canCable === false && placement.hasOutlet === false)) && (
                       <div className="form-group">
                         <label>Distance from router location</label>
                         <div className="button-group">
@@ -1008,7 +1161,7 @@ export default function Home() {
                     </div>
 
                     <div className="form-group">
-                      <label>Can we run a visible cable to this printer?</label>
+                      <label>Can we run a visible cable from our router to this printer?</label>
                       <div className="button-group">
                         <div
                           className={`button-group-item ${placement.canCable === true ? 'selected' : ''}`}
@@ -1026,6 +1179,45 @@ export default function Home() {
                     </div>
 
                     {placement.canCable === true && (
+                      <div className="form-group">
+                        <label>Cable length from router to printer</label>
+                        <p className="help-text">Choose the cable length that will reach from the router directly to the printer</p>
+                        <div className="button-group">
+                          <div
+                            className={`button-group-item ${placement.cableLength === 1 ? 'selected' : ''}`}
+                            onClick={() => selectPrinterOption(idx, 'cableLength', 1)}
+                          >
+                            1M
+                          </div>
+                          <div
+                            className={`button-group-item ${placement.cableLength === 3 ? 'selected' : ''}`}
+                            onClick={() => selectPrinterOption(idx, 'cableLength', 3)}
+                          >
+                            3M
+                          </div>
+                          <div
+                            className={`button-group-item ${placement.cableLength === 5 ? 'selected' : ''}`}
+                            onClick={() => selectPrinterOption(idx, 'cableLength', 5)}
+                          >
+                            5M
+                          </div>
+                          <div
+                            className={`button-group-item ${placement.cableLength === 10 ? 'selected' : ''}`}
+                            onClick={() => selectPrinterOption(idx, 'cableLength', 10)}
+                          >
+                            10M
+                          </div>
+                          <div
+                            className={`button-group-item ${placement.cableLength === 'wifi' ? 'selected' : ''}`}
+                            onClick={() => selectPrinterOption(idx, 'cableLength', 'wifi')}
+                          >
+                            Use WiFi Instead
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {placement.canCable === false && (
                       <div className="form-group">
                         <label>Is there an ethernet outlet at this location?</label>
                         <p className="help-text">An ethernet outlet is a wall-mounted socket (like a power outlet) with in-wall cabling</p>
@@ -1046,33 +1238,61 @@ export default function Home() {
                       </div>
                     )}
 
-                    {placement.canCable === true && placement.hasOutlet !== undefined && (
-                      <div className="form-group">
-                        <label>Cable length needed</label>
-                        <div className="button-group">
-                          <div
-                            className={`button-group-item ${placement.cableLength === 5 ? 'selected' : ''}`}
-                            onClick={() => selectPrinterOption(idx, 'cableLength', 5)}
-                          >
-                            &lt; 5M
-                          </div>
-                          <div
-                            className={`button-group-item ${placement.cableLength === 10 ? 'selected' : ''}`}
-                            onClick={() => selectPrinterOption(idx, 'cableLength', 10)}
-                          >
-                            &lt; 10M
-                          </div>
-                          <div
-                            className={`button-group-item ${placement.cableLength === 15 ? 'selected' : ''}`}
-                            onClick={() => selectPrinterOption(idx, 'cableLength', 15)}
-                          >
-                            &gt; 10M
+                    {placement.canCable === false && placement.hasOutlet === true && (
+                      <>
+                        <div className="form-group">
+                          <label>Cable length from router to ethernet outlet</label>
+                          <p className="help-text">First cable segment: Router → Wall Outlet</p>
+                          <div className="button-group">
+                            <div
+                              className={`button-group-item ${placement.routerToOutletCableLength === 1 ? 'selected' : ''}`}
+                              onClick={() => selectPrinterOption(idx, 'routerToOutletCableLength', 1)}
+                            >
+                              1M
+                            </div>
+                            <div
+                              className={`button-group-item ${placement.routerToOutletCableLength === 3 ? 'selected' : ''}`}
+                              onClick={() => selectPrinterOption(idx, 'routerToOutletCableLength', 3)}
+                            >
+                              3M
+                            </div>
+                            <div
+                              className={`button-group-item ${placement.routerToOutletCableLength === 5 ? 'selected' : ''}`}
+                              onClick={() => selectPrinterOption(idx, 'routerToOutletCableLength', 5)}
+                            >
+                              5M
+                            </div>
                           </div>
                         </div>
-                      </div>
+
+                        <div className="form-group">
+                          <label>Cable length from ethernet outlet to printer</label>
+                          <p className="help-text">Second cable segment: Wall Outlet → Printer</p>
+                          <div className="button-group">
+                            <div
+                              className={`button-group-item ${placement.outletToPrinterCableLength === 1 ? 'selected' : ''}`}
+                              onClick={() => selectPrinterOption(idx, 'outletToPrinterCableLength', 1)}
+                            >
+                              1M
+                            </div>
+                            <div
+                              className={`button-group-item ${placement.outletToPrinterCableLength === 3 ? 'selected' : ''}`}
+                              onClick={() => selectPrinterOption(idx, 'outletToPrinterCableLength', 3)}
+                            >
+                              3M
+                            </div>
+                            <div
+                              className={`button-group-item ${placement.outletToPrinterCableLength === 5 ? 'selected' : ''}`}
+                              onClick={() => selectPrinterOption(idx, 'outletToPrinterCableLength', 5)}
+                            >
+                              5M
+                            </div>
+                          </div>
+                        </div>
+                      </>
                     )}
 
-                    {placement.canCable === false && (
+                    {((placement.canCable === true && placement.cableLength === 'wifi') || (placement.canCable === false && placement.hasOutlet === false)) && (
                       <div className="form-group">
                         <label>Distance from router location</label>
                         <div className="button-group">
@@ -1089,6 +1309,12 @@ export default function Home() {
                             &gt; 10M
                           </div>
                         </div>
+                      </div>
+                    )}
+
+                    {placement.type === 'label' && ((placement.canCable === true && placement.cableLength === 'wifi') || (placement.canCable === false && placement.hasOutlet === false)) && (
+                      <div className="warning">
+                        ⚠️ WARNING: Label printers (ZD411) require a wired LAN connection and cannot use WiFi. You must select a cable option or use an ethernet outlet for this printer to function.
                       </div>
                     )}
                   </div>
@@ -1372,6 +1598,10 @@ export default function Home() {
               >
                 {calculateComplexity().level} - {calculateComplexity().time}
               </div>
+            </div>
+
+            <div className="info" style={{marginTop: '24px'}}>
+              ℹ️ <strong>Important:</strong> Ensure sufficient power points are available at each printer location. Each printer requires its own dedicated power outlet.
             </div>
 
             <button className="copy-btn" onClick={copyToClipboard}>

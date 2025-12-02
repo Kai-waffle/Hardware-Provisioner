@@ -33,7 +33,9 @@ export interface PrinterPlacement {
   stationId: string;
   canCable?: boolean;
   hasOutlet?: boolean;
-  cableLength?: 5 | 10 | 15;
+  cableLength?: 1 | 3 | 5 | 10 | 'wifi';
+  routerToOutletCableLength?: 1 | 3 | 5;
+  outletToPrinterCableLength?: 1 | 3 | 5;
   distance?: 'under10' | 'over10';
 }
 
