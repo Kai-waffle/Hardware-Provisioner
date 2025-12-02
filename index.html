@@ -1125,21 +1125,10 @@
                 </div>
 
                 <div class="form-group">
-                    <label>Can we run a visible cable to this printer?</label>
+                    <label>Can we run a visible ethernet cable from our router to this printer?</label>
                     <div class="button-group" id="cableGroup_${index}">
                         <div class="button-group-item" onclick="selectPrinterOption(${index}, '${type}', 'canCable', true)">Yes</div>
                         <div class="button-group-item" onclick="selectPrinterOption(${index}, '${type}', 'canCable', false)">No</div>
-                    </div>
-                </div>
-
-                <div id="outletOptions_${index}" style="display: none;">
-                    <div class="form-group">
-                        <label>Is there an ethernet outlet at this location?</label>
-                        <p class="help-text">An ethernet outlet is a wall-mounted socket (like a power outlet) with in-wall cabling</p>
-                        <div class="button-group" id="outletGroup_${index}">
-                            <div class="button-group-item" onclick="selectPrinterOption(${index}, '${type}', 'hasOutlet', true)">Yes</div>
-                            <div class="button-group-item" onclick="selectPrinterOption(${index}, '${type}', 'hasOutlet', false)">No</div>
-                        </div>
                     </div>
                 </div>
 
@@ -1150,6 +1139,18 @@
                             <div class="button-group-item" onclick="selectPrinterOption(${index}, '${type}', 'cableLength', 5)">< 5M</div>
                             <div class="button-group-item" onclick="selectPrinterOption(${index}, '${type}', 'cableLength', 10)">< 10M</div>
                             <div class="button-group-item" onclick="selectPrinterOption(${index}, '${type}', 'cableLength', 15)">> 10M</div>
+                        </div>
+                        <p class="help-text" id="cableLengthHelp_${index}" style="margin-top: 8px;"></p>
+                    </div>
+                </div>
+
+                <div id="outletOptions_${index}" style="display: none;">
+                    <div class="form-group">
+                        <label>Is there an ethernet outlet at this location?</label>
+                        <p class="help-text">An ethernet outlet is a wall-mounted socket (like a power outlet) with in-wall cabling</p>
+                        <div class="button-group" id="outletGroup_${index}">
+                            <div class="button-group-item" onclick="selectPrinterOption(${index}, '${type}', 'hasOutlet', true)">Yes</div>
+                            <div class="button-group-item" onclick="selectPrinterOption(${index}, '${type}', 'hasOutlet', false)">No</div>
                         </div>
                     </div>
                 </div>
@@ -1184,13 +1185,20 @@
                     
                     if (saved.canCable !== undefined) {
                         selectPrinterOption(index, type, 'canCable', saved.canCable);
-                        if (saved.canCable && saved.hasOutlet !== undefined) {
-                            selectPrinterOption(index, type, 'hasOutlet', saved.hasOutlet);
+                        if (saved.canCable) {
+                            // Can run visible cable from router - restore cable length
                             if (saved.cableLength) {
                                 selectPrinterOption(index, type, 'cableLength', saved.cableLength);
                             }
-                        } else if (!saved.canCable && saved.distance) {
-                            selectPrinterOption(index, type, 'distance', saved.distance);
+                        } else {
+                            // Cannot run visible cable - check outlet options
+                            if (saved.hasOutlet !== undefined) {
+                                selectPrinterOption(index, type, 'hasOutlet', saved.hasOutlet);
+                                if (!saved.hasOutlet && saved.distance) {
+                                    // No outlet - restore wifi distance
+                                    selectPrinterOption(index, type, 'distance', saved.distance);
+                                }
+                            }
                         }
                     }
                 }
@@ -1234,28 +1242,28 @@
                         }
                     });
                 }
-                
+
                 const outletOptions = document.getElementById(`outletOptions_${index}`);
                 const cableLengthOptions = document.getElementById(`cableLengthOptions_${index}`);
                 const wifiDistanceOptions = document.getElementById(`wifiDistanceOptions_${index}`);
-                
+
                 if (value === true) {
-                    // Can run cable - ask about outlet
+                    // Can run visible cable from router - ask cable length directly
+                    if (outletOptions) outletOptions.style.display = 'none';
+                    if (cableLengthOptions) cableLengthOptions.style.display = 'block';
+                    if (wifiDistanceOptions) wifiDistanceOptions.style.display = 'none';
+                } else {
+                    // Cannot run visible cable - ask about ethernet outlet
                     if (outletOptions) outletOptions.style.display = 'block';
                     if (cableLengthOptions) cableLengthOptions.style.display = 'none';
                     if (wifiDistanceOptions) wifiDistanceOptions.style.display = 'none';
-                } else {
-                    // Cannot run cable - WiFi distance question
-                    if (outletOptions) outletOptions.style.display = 'none';
-                    if (cableLengthOptions) cableLengthOptions.style.display = 'none';
-                    if (wifiDistanceOptions) wifiDistanceOptions.style.display = 'block';
                 }
             } else if (key === 'hasOutlet') {
                 const group = document.getElementById(`outletGroup_${index}`);
                 if (group) {
                     group.querySelectorAll('.button-group-item').forEach(btn => btn.classList.remove('selected'));
                 }
-                
+
                 // Find and select the clicked button
                 if (group) {
                     const buttons = group.querySelectorAll('.button-group-item');
@@ -1266,11 +1274,16 @@
                         }
                     });
                 }
-                
-                const cableLengthOptions = document.getElementById(`cableLengthOptions_${index}`);
-                
-                // Both yes and no to outlet show cable length (since we know cable can run)
-                if (cableLengthOptions) cableLengthOptions.style.display = 'block';
+
+                const wifiDistanceOptions = document.getElementById(`wifiDistanceOptions_${index}`);
+
+                if (value === true) {
+                    // Has outlet - they can use it with a short patch cable, no need for WiFi
+                    if (wifiDistanceOptions) wifiDistanceOptions.style.display = 'none';
+                } else {
+                    // No outlet - must use WiFi
+                    if (wifiDistanceOptions) wifiDistanceOptions.style.display = 'block';
+                }
             } else if (key === 'cableLength') {
                 const group = document.getElementById(`lengthGroup_${index}`);
                 if (group) {
@@ -1284,6 +1297,29 @@
                             btn.classList.add('selected');
                         }
                     });
+                }
+
+                // Update help text based on cable length selection
+                const helpText = document.getElementById(`cableLengthHelp_${index}`);
+                if (helpText) {
+                    if (value === 5) {
+                        helpText.innerHTML = 'We have 1m, 2m, 3m, 5m cables available';
+                        helpText.className = 'help-text';
+                    } else if (value === 10) {
+                        helpText.innerHTML = 'We have 5m, 8m, 10m cables available';
+                        helpText.className = 'help-text';
+                    } else if (value === 15) {
+                        // Show different warnings based on printer type
+                        if (type === 'label') {
+                            helpText.innerHTML = '⚠️ <strong>Warning:</strong> Label printers (ZD411) require a wired LAN connection. Running a cable >10M may not be practical. Consider relocating the printer or using an ethernet outlet closer to the router.';
+                            helpText.className = 'warning';
+                            helpText.style.marginTop = '8px';
+                        } else {
+                            helpText.innerHTML = '⚠️ <strong>Recommendation:</strong> For distances >10M, we suggest using a WiFi-enabled printer (M30-III) instead of running long cables. Please reconsider if WiFi is a better option.';
+                            helpText.className = 'warning';
+                            helpText.style.marginTop = '8px';
+                        }
+                    }
                 }
             } else if (key === 'distance') {
                 const group = document.getElementById(`distanceGroup_${index}`);
@@ -1551,30 +1587,40 @@
 
         function getPrinterModel(type, placement) {
             if (type === 'label') return 'ZD411';
-            
-            if (placement.hasOutlet || (placement.canCable && placement.cableLength !== 15)) {
+
+            // Can run visible cable from router (not >10M)
+            if (placement.canCable && placement.cableLength !== 15) {
                 return 'TM-T82X';
             }
-            
+
+            // Has ethernet outlet (when can't run visible cable)
+            if (!placement.canCable && placement.hasOutlet) {
+                return 'TM-T82X';
+            }
+
+            // WiFi printer for all other cases
             return 'M30-III';
         }
 
         function getPrinterConnection(placement) {
-            if (placement.hasOutlet) {
-                return `LAN ${placement.cableLength || 5}M`;
-            }
-            
+            // Can run visible cable from router
             if (placement.canCable) {
                 if (placement.cableLength === 15) {
-                    return 'WiFi (>10M, recommend M30-III)';
+                    return 'LAN >10M (consider WiFi M30-III)';
                 }
-                return `LAN ${placement.cableLength}M`;
+                return `LAN ${placement.cableLength}M from router`;
             }
-            
+
+            // Cannot run visible cable but has ethernet outlet
+            if (placement.hasOutlet) {
+                return 'LAN via Ethernet Outlet';
+            }
+
+            // WiFi connection
             if (placement.distance === 'over10') {
                 return 'WiFi (>10M, may need router upgrade)';
             }
-            
+
             return 'WiFi';
         }
 
@@ -1585,14 +1631,14 @@
             
             // Count wired printers
             state.printersPlacement.forEach(p => {
-                if (p && (p.hasOutlet || (p.canCable && p.cableLength !== 15))) {
+                if (p && ((p.canCable && p.cableLength !== 15) || (!p.canCable && p.hasOutlet))) {
                     wiredCount++;
                 }
             });
 
             // Determine router
-            const hasLongRangeNeeds = state.printersPlacement.some(p => 
-                p && (!p.hasOutlet && !p.canCable && p.distance === 'over10')
+            const hasLongRangeNeeds = state.printersPlacement.some(p =>
+                p && (!p.canCable && !p.hasOutlet && p.distance === 'over10')
             );
 
             if (state.infrastructure.hasInternet) {
@@ -1612,10 +1658,10 @@
                 }
             }
 
-            // Calculate cables
+            // Calculate cables (only count cables from router, outlets use short patch cables)
             const cableCounts = { 5: 0, 10: 0 };
             state.printersPlacement.forEach(p => {
-                if (p && (p.hasOutlet || p.canCable)) {
+                if (p && p.canCable && p.cableLength) {
                     if (p.cableLength === 5) cableCounts[5]++;
                     else if (p.cableLength === 10) cableCounts[10]++;
                 }
@@ -1636,9 +1682,9 @@
         function calculateComplexity() {
             let wiredPrinters = 0;
             let totalPrinters = (state.printers.receipt || 0) + (state.printers.kitchen || 0) + (state.printers.label || 0);
-            
+
             state.printersPlacement.forEach(p => {
-                if (p && (p.hasOutlet || (p.canCable && p.cableLength !== 15))) {
+                if (p && ((p.canCable && p.cableLength !== 15) || (!p.canCable && p.hasOutlet))) {
                     wiredPrinters++;
                 }
             });
