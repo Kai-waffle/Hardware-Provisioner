@@ -1,6 +1,6 @@
 # Waffle Hardware Provisioner
 
-**Version 3.9** | Last Updated: December 1, 2025
+**Version 4.0** | Last Updated: December 2, 2025
 
 ---
 
@@ -258,40 +258,45 @@ Where the printer will be physically installed.
 Which station (POS iPad) will control this printer? Printers are paired to stations so orders from that station route to the correct printer.
 
 **3. Cable Capability**
-*"Can we run a visible LAN cable to this printer location?"*
+*"Can we run a visible cable from our router to this printer?"*
 
 - **Yes** → Wired connection preferred (more reliable)
-- **No** → WiFi connection required
+- **No** → Check for ethernet outlet availability
 
-**4. Ethernet Outlet Availability**
+**4. Cable Length (if can run visible cable)**
+*"How long is the cable required?"*
+
+- **1M** - Very short distance
+- **3M** - Short distance
+- **5M** - Medium distance
+- **10M** - Long distance
+- **Use WiFi Instead** - Prefer WiFi over running cable (automatically selects M30-III WiFi printer)
+
+**5. Ethernet Outlet Availability (if cannot run visible cable)**
 *"Is there an ethernet outlet (in-wall socket with built-in cabling) at this location?"*
 
-- **Yes** → Professional wired setup, no visible cables needed
-- **No** → Proceed to cable length question
+- **Yes** → Ask for two cable lengths:
+  - Cable length from router to ethernet outlet (1M, 3M, 5M)
+  - Cable length from ethernet outlet to printer (1M, 3M, 5M)
+- **No** → WiFi connection required, ask for distance from router
 
-**5. Cable Length Needed** (if no ethernet outlet)
-*"How long of a cable do we need to reach this printer?"*
-
-- **5M or shorter**
-- **10M or shorter**
-- **More than 10M** (triggers WiFi recommendation)
-
-**6. Distance from Router** (for WiFi printers)
+**6. Distance from Router** (for WiFi printers only)
 *"How far is this printer from the router?"*
 
-- Used to determine if long-range WiFi equipment (M30-III printer) is needed
+- **< 10M** → Standard WiFi router sufficient
+- **> 10M** → Long-range WiFi router required
 
 #### Connectivity Logic:
 
 The provisioner determines printer connection type based on your answers:
 
-| Cable Capability | Ethernet Outlet | Cable Length | Connection Type |
-|-----------------|----------------|--------------|-----------------|
-| Yes | Yes | - | **LAN (Ethernet Outlet)** |
-| Yes | No | ≤5M | **LAN 5M** |
-| Yes | No | ≤10M | **LAN 10M** |
-| Yes | No | >10M | **WiFi** (cable too long) |
-| No | - | - | **WiFi** |
+| Can Run Cable? | Cable Length/WiFi Choice | Outlet Available? | Connection Type |
+|---------------|-------------------------|------------------|-----------------|
+| Yes | 1M, 3M, 5M, 10M | - | **LAN (cable length)M** |
+| Yes | Use WiFi Instead | - | **WiFi (by choice)** |
+| No | - | Yes | **LAN via Outlet** (with 2 cable segments) |
+| No | - | No, < 10M | **WiFi** (standard router) |
+| No | - | No, > 10M | **WiFi** (long-range router) |
 
 ---
 
@@ -388,8 +393,8 @@ The provisioner selects the optimal router model based on:
 | SIM Card | Long-range | **ER706W Router** |
 
 **Long-range need** is determined by:
-- Any printer >10M from router requiring WiFi
-- Any printer marked as long-distance WiFi
+- Any WiFi printer with distance > 10M from router
+- **Note:** Only WiFi printers with confirmed > 10M distance trigger long-range router selection
 
 #### 2. Network Switch Recommendation
 
@@ -405,15 +410,18 @@ A **5-Port Network Switch** is recommended when:
 
 The provisioner counts required ethernet cables by length:
 
-**5M Cables:**
-- One per printer with "LAN 5M" connection
+**1M, 3M, 5M, and 10M Cables:**
+- Counts each cable length selected for direct router-to-printer connections
+- Counts router-to-outlet cables when using ethernet outlets
+- Counts outlet-to-printer cables when using ethernet outlets
 
-**10M Cables:**
-- One per printer with "LAN 10M" connection
+**Example:**
+- Printer 1: 5M cable from router = 1x 5M cable
+- Printer 2: Router to outlet (3M) + Outlet to printer (1M) = 1x 3M cable + 1x 1M cable
 
 **Not Counted:**
-- Ethernet outlet connections (cables built into wall)
 - WiFi printers (no cable needed)
+- Built-in wall cabling (already installed)
 
 ---
 
@@ -964,6 +972,15 @@ NETWORK EQUIPMENT:
 ```
 COMPLEXITY: MEDIUM (Estimated Time: 1.5 hours)
 ```
+
+### 7. Important Notice
+```
+⚠️ Important: Please ensure that sufficient power points are available
+at the customer's location for all hardware equipment (iPads, printers,
+routers, switches, etc.).
+```
+
+This notice appears at the bottom of every review to remind AMs to verify power availability before finalizing orders.
 
 ### Export Options
 
@@ -1534,7 +1551,32 @@ Currently, no specific future features have been defined beyond addressing the k
 
 ## Version History
 
-### v3.9 - December 1, 2025 (Current)
+### v4.0 - December 2, 2025 (Current)
+
+**Major Changes:**
+- ✅ **Updated question text:** "Can we run a visible cable from our router to this printer?"
+- ✅ **New cable length options:** 1M, 3M, 5M, 10M, and "Use WiFi Instead"
+- ✅ **WiFi printer selection:** "Use WiFi Instead" automatically selects M30-III WiFi printer
+- ✅ **Ethernet outlet dual-cable setup:** When using ethernet outlets, now asks for two cable lengths:
+  - Router to ethernet outlet (1M, 3M, 5M)
+  - Ethernet outlet to printer (1M, 3M, 5M)
+- ✅ **Fixed router selection logic:** Only selects long-range routers (ER706W4G-V2/ER706W) when WiFi printer distance is confirmed > 10M
+- ✅ **Power points notice:** Added important notice on review page reminding AMs to verify power point availability
+- ✅ **Improved cable counting:** Now counts all cable lengths (1M, 3M, 5M, 10M) including outlet cables
+
+**Bug Fixes:**
+- ✅ Router recommendation now correctly considers WiFi distance (previously selected long-range router unnecessarily)
+- ✅ Cable counting now includes outlet segment cables
+
+**Impact:**
+- More accurate hardware provisioning
+- Better cable inventory management
+- Reduced over-specification of expensive long-range routers
+- Clearer guidance for AMs on cable requirements
+
+---
+
+### v3.9 - December 1, 2025
 
 **New Features:**
 - ✅ Added Notion database integration via "Update on Notion DB" button
